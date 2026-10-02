@@ -1,0 +1,28 @@
+name: Sync Checkin Pre-Cache
+
+on:
+  schedule:
+    # Läuft alle 15 Minuten
+    - cron: '*/15 * * * *'
+  workflow_dispatch: # Ermöglicht auch manuelles Ausführen per Klick auf GitHub
+
+jobs:
+  sync-data:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v3
+
+      - name: Fetch JSON from Google Apps Script
+        run: |
+          curl -L "https://script.google.com/macros/s/AKfycbzzncqaJlvS8Q58Ppnwe4FW3Aoz5dONVHPfmvpeG82S3t0lOLZr6s6-z_8kr_RhyvMu1w/exec?action=getPreCacheJson" -o data.json
+
+      - name: Commit & Push data.json
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add data.json
+          git commit -m "Auto-update checkin data.json [skip ci]" || exit 0
+          git push
