@@ -6,86 +6,131 @@
   <title>L8 Street – Online Check-in</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
   <style>
-    body { padding: 20px; max-width: 600px; margin: 0 auto; background-color: #f8fafc; }
-    article { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border-radius: 12px; }
-    .code-box { background: #1e293b; color: #38bdf8; padding: 15px; border-radius: 8px; font-weight: bold; font-family: monospace; text-align: center; }
-    .badge { background: #e2e8f0; font-size: 0.8rem; padding: 2px 8px; border-radius: 4px; display: inline-block; }
+    body { display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background-color: #f1f5f9; padding: 16px; }
+    .card { width: 100%; max-width: 520px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05); margin: 0 auto; }
+    .code-box { background: #0f172a; color: #38bdf8; padding: 16px; border-radius: 8px; font-weight: 700; font-family: monospace; text-align: center; font-size: 1.1rem; white-space: pre-line; margin-bottom: 12px; }
+    .badge-paid { background: #dcfce7; color: #166534; font-size: 0.75rem; padding: 3px 8px; border-radius: 4px; font-weight: 600; border: 1px solid #bbf7d0; }
+    .badge-open { background: #fef3c7; color: #92400e; font-size: 0.75rem; padding: 3px 8px; border-radius: 4px; font-weight: 600; border: 1px solid #fde68a; }
+    .msg-box { padding: 12px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 16px; text-align: center; background-color: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+    .apt-card { border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px; margin-bottom: 12px; cursor: pointer; transition: background 0.2s; }
+    .apt-card:hover { background: #f8fafc; }
+    button, a[role="button"] { width: 100%; }
   </style>
 </head>
 <body>
 
-  <main>
-    <article>
-      <header style="text-align: center;">
-        <h2 style="margin-bottom: 0;">L8 Street Check-in</h2>
-        <small>Gästeportal &amp; Schlüsselcode-Abruf</small>
-      </header>
+  <article class="card">
+    <header style="text-align: center; padding-bottom: 12px;">
+      <h3 style="margin-bottom: 4px; font-weight: 800; color: #0f172a;">L8 Street Check-in</h3>
+      <small style="color: #64748b;">Gästeportal &amp; Schlüsselcode-Abruf</small>
+    </header>
 
-      <div id="messageBox" style="display: none;" class="pico-background-red-100"></div>
+    <div id="messageBox" class="msg-box" style="display: none;"></div>
 
-      <!-- SCHRITT 1: E-Mail -->
-      <div id="stepEmail">
-        <p><small>Geben Sie die E-Mail-Adresse Ihrer Buchung ein, um den Sicherheitscode anzufordern.</small></p>
-        <label for="emailInput">E-Mail Adresse</label>
-        <input type="email" id="emailInput" placeholder="ihre@email.de" required>
-        <button id="btnRequestOTP" onclick="requestOTP()">Sicherheitscode anfordern</button>
+    <!-- SCHRITT 1: E-Mail -->
+    <div id="stepEmail">
+      <p style="margin-bottom: 12px;"><small>Geben Sie die E-Mail-Adresse Ihrer Buchung ein, um den Sicherheitscode anzufordern.</small></p>
+      <label for="emailInput">E-Mail Adresse</label>
+      <input type="email" id="emailInput" placeholder="ihre@email.de" required>
+      <button id="btnRequestOTP" onclick="requestOTP()">Sicherheitscode anfordern</button>
+    </div>
+
+    <!-- SCHRITT 2: OTP -->
+    <div id="stepOTP" style="display: none;">
+      <p style="margin-bottom: 12px;"><small>Wir haben einen 6-stelligen Code an Ihre E-Mail gesendet.</small></p>
+      <label for="otpInput">Sicherheitscode</label>
+      <input type="text" id="otpInput" placeholder="123456" maxlength="6" style="text-align: center; letter-spacing: 6px; font-size: 1.3rem; font-weight: bold;" required>
+      <button id="btnVerifyOTP" onclick="verifyOTP()">Verifizieren &amp; Anmelden</button>
+      <div style="text-align: center; margin-top: 8px;"><a href="#" onclick="logout()" style="font-size: 0.8rem; color: #64748b;">Anderes Konto nutzen</a></div>
+    </div>
+
+    <!-- SCHRITT 3: Apartment Auswahl (Karten) -->
+    <div id="stepCards" style="display: none;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h4 style="margin: 0;">Ihre Buchungen</h4>
+        <a href="#" onclick="logout()" style="font-size: 0.75rem; color: #ef4444;">Abmelden</a>
       </div>
+      <p style="margin-bottom: 16px;"><small>Klicken Sie auf ein Apartment, um zum Check-in zu gelangen:</small></p>
+      <div id="cardsContainer"></div>
+    </div>
 
-      <!-- SCHRITT 2: OTP -->
-      <div id="stepOTP" style="display: none;">
-        <p><small>Wir haben einen 6-stelligen Code an Ihre E-Mail gesendet.</small></p>
-        <label for="otpInput">Sicherheitscode</label>
-        <input type="text" id="otpInput" placeholder="123456" maxlength="6" style="text-align: center; letter-spacing: 4px; font-size: 1.2rem;" required>
-        <button id="btnVerifyOTP" onclick="verifyOTP()">Verifizieren</button>
-        <div style="text-align: center;"><a href="#" onclick="resetFlow()" style="font-size: 0.8rem;">Anderes Konto nutzen</a></div>
-      </div>
+    <!-- SCHRITT 4: Hausordnung (Nur bei Bezahlt) -->
+    <div id="stepRules" style="display: none;">
+      <h4 style="margin-bottom: 8px;">Willkommen!</h4>
+      <p><small>Bitte akzeptieren Sie vor der Schlüsselübergabe unsere Hausordnung:</small></p>
+      <ul style="font-size: 0.85rem; padding-left: 20px; color: #334155;">
+        <li><strong>Rauchverbot:</strong> Im gesamten Gebäude strengstens untersagt.</li>
+        <li><strong>Nachtruhe:</strong> Bitte halten Sie von 22:00 bis 07:00 Uhr Ruhe.</li>
+        <li><strong>Partys:</strong> Veranstaltungen und Feiern sind untersagt.</li>
+      </ul>
+      <fieldset style="margin-top: 16px;">
+        <label for="checkRules" style="font-size: 0.85rem;">
+          <input type="checkbox" id="checkRules" onchange="toggleRulesBtn()">
+          Ich habe die Hausordnung gelesen und akzeptiere diese.
+        </label>
+      </fieldset>
+      <button id="btnShowCheckin" disabled onclick="showPaidCodeScreen()" style="margin-top: 8px;">Weiter zum Check-in Code</button>
+      <div style="text-align: center; margin-top: 8px;"><a href="#" onclick="backToCards()" style="font-size: 0.8rem;">Zurück zur Übersicht</a></div>
+    </div>
 
-      <!-- SCHRITT 3: Hausordnung -->
-      <div id="stepRules" style="display: none;">
-        <h4>Willkommen!</h4>
-        <p><small>Bitte akzeptieren Sie vor der Schlüsselübergabe die Hausordnung:</small></p>
-        <ul>
-          <li><small><strong>Rauchverbot:</strong> Im gesamten Gebäude untersagt.</small></li>
-          <li><small><strong>Nachtruhe:</strong> Von 22:00 bis 07:00 Uhr.</small></li>
-          <li><small><strong>Partys:</strong> Strikte Untersagung von Feiern.</small></li>
-        </ul>
-        <fieldset>
-          <label for="checkRules">
-            <input type="checkbox" id="checkRules" onchange="toggleRulesBtn()">
-            Ich akzeptiere die Hausordnung.
-          </label>
-        </fieldset>
-        <button id="btnShowCheckin" disabled onclick="showBookings()">Weiter zur Apartment-Auswahl</button>
-      </div>
+    <!-- SCHRITT 5: Check-in Code Anzeige (Nur bei Bezahlt) -->
+    <div id="stepPaidCode" style="display: none;">
+      <div id="paidCodeContent"></div>
+      <div style="text-align: center; margin-top: 12px;"><a href="#" onclick="backToCards()" style="font-size: 0.8rem;">Zurück zur Übersicht</a></div>
+    </div>
 
-      <!-- SCHRITT 4: Apartment Details -->
-      <div id="stepDetails" style="display: none;">
-        <h4>Ihre Apartments</h4>
-        <p><small>Wählen Sie das gewünschte Apartment aus, um den Check-in durchzuführen:</small></p>
-        <div id="bookingsContainer"></div>
-      </div>
+    <!-- SCHRITT 6: Zahlungs-Upload Bildschirm (Nur bei Offen) -->
+    <div id="stepUnpaidUpload" style="display: none;">
+      <div id="unpaidContent"></div>
+      <div style="text-align: center; margin-top: 12px;"><a href="#" onclick="backToCards()" style="font-size: 0.8rem;">Zurück zur Übersicht</a></div>
+    </div>
 
-    </article>
-  </main>
+  </article>
 
   <script>
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzzncqaJlvS8Q58Ppnwe4FW3Aoz5dONVHPfmvpeG82S3t0lOLZr6s6-z_8kr_RhyvMu1w/exec";
+    const SESSION_HOURS = 3;
+
     let currentEmail = "";
     let preCacheData = null;
     let userBookings = [];
+    let selectedBooking = null;
 
-    // Pre-Cache JSON direkt beim Laden im Hintergrund holen (Dauert ca. 10ms)
-    async function loadPreCache() {
+    async function initPortal() {
       try {
         const res = await fetch("./data.json?v=" + new Date().getTime());
         const json = await res.json();
         preCacheData = json.data || {};
       } catch (err) {
-        console.error("Cache nicht bereit, verwende Fallback.");
         preCacheData = {};
       }
+
+      const savedSession = localStorage.getItem("l8_checkin_session");
+      if (savedSession) {
+        try {
+          const session = JSON.parse(savedSession);
+          if (((new Date().getTime() - session.timestamp) / 3600000) < SESSION_HOURS && session.email) {
+            currentEmail = session.email;
+            userBookings = preCacheData[currentEmail] || [];
+            if (userBookings.length > 0) {
+              hideAll();
+              renderCardsScreen();
+            }
+          } else {
+            localStorage.removeItem("l8_checkin_session");
+          }
+        } catch (e) {
+          localStorage.removeItem("l8_checkin_session");
+        }
+      }
     }
-    loadPreCache();
+    initPortal();
+
+    function hideAll() {
+      ["stepEmail", "stepOTP", "stepCards", "stepRules", "stepPaidCode", "stepUnpaidUpload"].forEach(id => {
+        document.getElementById(id).style.display = "none";
+      });
+    }
 
     function showMsg(txt) {
       const box = document.getElementById("messageBox");
@@ -102,9 +147,8 @@
       if (!email) return showMsg("Bitte E-Mail eingeben.");
       currentEmail = email;
 
-      // Vorab lokal prüfen, ob Buchungen für diese Mail existieren
       if (preCacheData && !preCacheData[email] && email !== "info@l8street.com") {
-        return showMsg("Keine bezahlten aktuellen Buchungen für diese E-Mail gefunden.");
+        return showMsg("Keine aktuellen Buchungen für diese E-Mail gefunden.");
       }
 
       const btn = document.getElementById("btnRequestOTP");
@@ -115,7 +159,7 @@
         const res = await fetch(`${SCRIPT_URL}?action=requestOTP&email=${encodeURIComponent(email)}`);
         const data = await res.json();
         if (data.success) {
-          document.getElementById("stepEmail").style.display = "none";
+          hideAll();
           document.getElementById("stepOTP").style.display = "block";
         } else {
           showMsg(data.message || "Fehler beim Senden.");
@@ -141,8 +185,9 @@
 
         if (data.success) {
           userBookings = preCacheData[currentEmail] || [];
-          document.getElementById("stepOTP").style.display = "none";
-          document.getElementById("stepRules").style.display = "block";
+          localStorage.setItem("l8_checkin_session", JSON.stringify({ email: currentEmail, timestamp: new Date().getTime() }));
+          hideAll();
+          renderCardsScreen();
         } else {
           showMsg(data.message || "Code ungültig.");
         }
@@ -153,47 +198,131 @@
       }
     }
 
+    function renderCardsScreen() {
+      document.getElementById("stepCards").style.display = "block";
+      const container = document.getElementById("cardsContainer");
+      container.innerHTML = "";
+
+      userBookings.forEach((b, idx) => {
+        const div = document.createElement("div");
+        div.className = "apt-card";
+        div.onclick = () => selectBooking(b);
+        div.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <span class="${b.isPaid ? 'badge-paid' : 'badge-open'}">${b.isPaid ? '✓ Bezahlt' : '⚠️️ Rechnung Offen'}</span>
+            <small style="color: #64748b;">${b.anreise} bis ${b.abreise}</small>
+          </div>
+          <h4 style="margin: 0 0 4px 0; font-size: 1rem;">${b.gastName}</h4>
+          <p style="margin: 0; font-size: 0.85rem; color: #475569;">${b.address}</p>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function selectBooking(b) {
+      selectedBooking = b;
+      hideAll();
+
+      if (b.isPaid) {
+        document.getElementById("stepRules").style.display = "block";
+        document.getElementById("checkRules").checked = false;
+        toggleRulesBtn();
+      } else {
+        renderUnpaidUploadScreen(b);
+      }
+    }
+
     function toggleRulesBtn() {
       document.getElementById("btnShowCheckin").disabled = !document.getElementById("checkRules").checked;
     }
 
-    function showBookings() {
-      document.getElementById("stepRules").style.display = "none";
-      document.getElementById("stepDetails").style.display = "block";
-      
-      const container = document.getElementById("bookingsContainer");
-      container.innerHTML = "";
+    function showPaidCodeScreen() {
+      hideAll();
+      document.getElementById("stepPaidCode").style.display = "block";
+      const b = selectedBooking;
+      const shareText = `*L8 Street Check-in Info*\n📍 *Adresse:* ${b.address}\n🏢 *Lage:* ${b.etage} | ${b.seite}\n📅 *Zeitraum:* ${b.anreise} - ${b.abreise}\n🔑 *Code:*\n${b.checkinCode}`;
 
-      userBookings.forEach((b, idx) => {
-        const shareText = `*L8 Street Check-in Info*\n📍 *Adresse:* ${b.address}\n🏢 *Lage:* ${b.etage} | ${b.seite}\n📅 *Zeitraum:* ${b.anreise} - ${b.abreise}\n🔑 *Code:*\n${b.checkinCode}`;
-        
-        const card = document.createElement("article");
-        card.style.padding = "15px";
-        card.style.marginBottom = "15px";
-        card.innerHTML = `
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span class="badge">Buchung ${b.lodgifyId}</span>
-            <small>${b.anreise} bis ${b.abreise}</small>
-          </div>
-          <h4 style="margin: 5px 0;">${b.gastName}</h4>
-          <p style="font-size: 0.9rem; margin-bottom: 10px;">
-            <strong>Adresse:</strong> ${b.address}<br>
-            <strong>Etage/Lage:</strong> ${b.etage} | ${b.seite}
-          </p>
+      document.getElementById("paidCodeContent").innerHTML = `
+        <h4 style="margin-bottom: 8px;">Check-in Daten</h4>
+        <p style="font-size: 0.85rem; color: #475569; margin-bottom: 12px;">
+          <strong>Adresse:</strong> ${b.address}<br>
+          <strong>Etage/Lage:</strong> ${b.etage} | ${b.seite}<br>
+          <strong>Zeitraum:</strong> ${b.anreise} bis ${b.abreise}
+        </p>
 
-          <div class="code-box">${b.checkinCode}</div>
+        <div class="code-box">${b.checkinCode}</div>
 
-          <div class="grid" style="margin-top: 10px;">
-            <button class="secondary outline" onclick="copyTxt(\`${shareText.replace(/`/g, '\\`')}\`, this)">📋 Kopieren</button>
-            <a role="button" class="contrast" href="https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}" target="_blank">💬 WhatsApp</a>
-          </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;">
+          <button class="secondary outline" onclick="copyTxt(\`${shareText.replace(/`/g, '\\`')}\`, this)" style="padding: 8px; font-size: 0.8rem;">📋 Kopieren</button>
+          <a role="button" class="contrast" href="https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}" target="_blank" style="padding: 8px; font-size: 0.8rem; text-align: center;">💬 WhatsApp</a>
+        </div>
 
-          <button id="btnConfirm_${idx}" onclick="confirmCheckin('${b.lodgifyId}', '${b.aptCode}', '${b.gastName}', ${idx})" style="margin-top: 10px;">
-            Check-in für dieses Apartment bestätigen
-          </button>
-        `;
-        container.appendChild(card);
-      });
+        <button id="btnConfirmPaid" onclick="confirmCheckinAction('${b.lodgifyId}', '${b.aptCode}', '${b.gastName}')">
+          Check-in jetzt bestätigen
+        </button>
+      `;
+    }
+
+    function renderUnpaidUploadScreen(b) {
+      document.getElementById("stepUnpaidUpload").style.display = "block";
+      document.getElementById("unpaidContent").innerHTML = `
+        <h4 style="margin-bottom: 8px; color: #92400e;">Rechnung noch offen</h4>
+        <p style="font-size: 0.85rem; color: #475569; margin-bottom: 12px;">
+          Ihre Buchung für <strong>${b.address}</strong> ist aktuell noch nicht als bezahlt markiert.
+        </p>
+
+        ${b.pdfUrl ? `<a role="button" href="${b.pdfUrl}" target="_blank" class="outline" style="margin-bottom: 16px; font-size: 0.85rem;">📄 Rechnung herunterladen (PDF)</a>` : ''}
+
+        <article style="padding: 12px; border: 1px dashed #cbd5e1; border-radius: 8px; margin-top: 12px; background: #f8fafc;">
+          <h5 style="margin-bottom: 6px; font-size: 0.9rem;">Zahlungsnachweis hochladen</h5>
+          <p style="font-size: 0.75rem; color: #64748b; margin-bottom: 8px;">Laden Sie hier einen Überweisungsbeleg (PDF oder Bild) hoch:</p>
+          <input type="file" id="proofFile" accept="image/*,application/pdf" style="font-size: 0.8rem; margin-bottom: 8px;">
+          <button id="btnUploadProof" onclick="uploadProof('${b.lodgifyId}', '${b.aptCode}')" style="font-size: 0.85rem;">Upload senden</button>
+        </article>
+
+        <div id="uploadStatusMsg" style="display:none; margin-top: 12px; padding: 10px; border-radius: 6px; background: #dcfce7; color: #166534; font-size: 0.85rem; text-align: center;"></div>
+      `;
+    }
+
+    async function uploadProof(lodgifyId, aptCode) {
+      const fileInput = document.getElementById("proofFile");
+      if (!fileInput.files || fileInput.files.length === 0) {
+        alert("Bitte wählen Sie zuerst eine Datei aus.");
+        return;
+      }
+
+      const file = fileInput.files[0];
+      const btn = document.getElementById("btnUploadProof");
+      btn.ariaBusy = "true";
+
+      const reader = new FileReader();
+      reader.onload = async function(e) {
+        const base64 = e.target.result.split(',')[1];
+        try {
+          await fetch(SCRIPT_URL, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify({
+              action: "uploadPaymentProof",
+              email: currentEmail,
+              lodgifyId: lodgifyId,
+              aptCode: aptCode,
+              fileName: file.name,
+              fileBase64: base64
+            })
+          });
+
+          const msg = document.getElementById("uploadStatusMsg");
+          msg.innerText = "Danke! Wir prüfen Ihre Zahlung jetzt bitte kommen Sie in ca. 20 Minuten zurück";
+          msg.style.display = "block";
+          btn.style.display = "none";
+        } catch (err) {
+          alert("Fehler beim Upload.");
+        } finally {
+          btn.ariaBusy = "false";
+        }
+      };
+      reader.readAsDataURL(file);
     }
 
     function copyTxt(txt, btn) {
@@ -204,8 +333,8 @@
       });
     }
 
-    async function confirmCheckin(lodgifyId, aptCode, guestName, idx) {
-      const btn = document.getElementById(`btnConfirm_${idx}`);
+    async function confirmCheckinAction(lodgifyId, aptCode, guestName) {
+      const btn = document.getElementById("btnConfirmPaid");
       btn.ariaBusy = "true";
 
       try {
@@ -231,8 +360,16 @@
       }
     }
 
-    function resetFlow() {
-      document.getElementById("stepOTP").style.display = "none";
+    function backToCards() {
+      hideAll();
+      renderCardsScreen();
+    }
+
+    function logout() {
+      localStorage.removeItem("l8_checkin_session");
+      currentEmail = "";
+      userBookings = [];
+      hideAll();
       document.getElementById("stepEmail").style.display = "block";
       clearMsg();
     }
