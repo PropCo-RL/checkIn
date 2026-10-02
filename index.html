@@ -50,7 +50,7 @@
         <h4 style="margin: 0;">Ihre Buchungen</h4>
         <a href="#" onclick="logout()" style="font-size: 0.75rem; color: #ef4444;">Abmelden</a>
       </div>
-      <p style="margin-bottom: 16px;"><small>Klicken Sie auf ein Apartment, um zum Check-in zu gelangen:</small></p>
+      <p style="margin-bottom: 16px;"><small>Klicken Sie auf ein Apartment, um fortzufahren:</small></p>
       <div id="cardsContainer"></div>
     </div>
 
@@ -92,25 +92,19 @@
     const SESSION_HOURS = 3;
 
     let currentEmail = "";
-    let preCacheData = null;
+    let preCacheData = {};
     let userBookings = [];
     let selectedBooking = null;
 
     async function initPortal() {
-      try {
-        const res = await fetch("./data.json?v=" + new Date().getTime());
-        const json = await res.json();
-        preCacheData = json.data || {};
-      } catch (err) {
-        preCacheData = {};
-      }
+      await fetchPreCache();
 
       const savedSession = localStorage.getItem("l8_checkin_session");
       if (savedSession) {
         try {
           const session = JSON.parse(savedSession);
           if (((new Date().getTime() - session.timestamp) / 3600000) < SESSION_HOURS && session.email) {
-            currentEmail = session.email;
+            currentEmail = session.email.toLowerCase();
             userBookings = preCacheData[currentEmail] || [];
             if (userBookings.length > 0) {
               hideAll();
@@ -124,6 +118,17 @@
         }
       }
     }
+
+    async function fetchPreCache() {
+      try {
+        const res = await fetch("./data.json?v=" + new Date().getTime());
+        const json = await res.json();
+        preCacheData = json.data || {};
+      } catch (err) {
+        preCacheData = {};
+      }
+    }
+
     initPortal();
 
     function hideAll() {
@@ -147,7 +152,9 @@
       if (!email) return showMsg("Bitte E-Mail eingeben.");
       currentEmail = email;
 
-      if (preCacheData && !preCacheData[email] && email !== "info@l8street.com") {
+      await fetchPreCache(); // Sicherstellen, dass Cache geladen ist
+
+      if (!preCacheData[email] && email !== "info@l8street.com") {
         return showMsg("Keine aktuellen Buchungen für diese E-Mail gefunden.");
       }
 
@@ -203,13 +210,13 @@
       const container = document.getElementById("cardsContainer");
       container.innerHTML = "";
 
-      userBookings.forEach((b, idx) => {
+      userBookings.forEach((b) => {
         const div = document.createElement("div");
         div.className = "apt-card";
         div.onclick = () => selectBooking(b);
         div.innerHTML = `
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <span class="${b.isPaid ? 'badge-paid' : 'badge-open'}">${b.isPaid ? '✓ Bezahlt' : '⚠️️ Rechnung Offen'}</span>
+            <span class="${b.isPaid ? 'badge-paid' : 'badge-open'}">${b.isPaid ? '✓ Bezahlt' : '⚠ Rechnung Offen'}</span>
             <small style="color: #64748b;">${b.anreise} bis ${b.abreise}</small>
           </div>
           <h4 style="margin: 0 0 4px 0; font-size: 1rem;">${b.gastName}</h4>
