@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>L8 Street – Online Check-in</title>
-  <!-- Pico CSS v2 -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
   <style>
     body { padding: 20px; max-width: 600px; margin: 0 auto; background-color: #f8fafc; }
@@ -59,7 +58,7 @@
         <button id="btnShowCheckin" disabled onclick="showBookings()">Weiter zur Apartment-Auswahl</button>
       </div>
 
-      <!-- SCHRITT 4: Apartment Auswahl / Details -->
+      <!-- SCHRITT 4: Apartment Details -->
       <div id="stepDetails" style="display: none;">
         <h4>Ihre Apartments</h4>
         <p><small>Wählen Sie das gewünschte Apartment aus, um den Check-in durchzuführen:</small></p>
@@ -72,7 +71,21 @@
   <script>
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzzncqaJlvS8Q58Ppnwe4FW3Aoz5dONVHPfmvpeG82S3t0lOLZr6s6-z_8kr_RhyvMu1w/exec";
     let currentEmail = "";
-    let loadedBookings = [];
+    let preCacheData = null;
+    let userBookings = [];
+
+    // Pre-Cache JSON direkt beim Laden im Hintergrund holen (Dauert ca. 10ms)
+    async function loadPreCache() {
+      try {
+        const res = await fetch("./data.json?v=" + new Date().getTime());
+        const json = await res.json();
+        preCacheData = json.data || {};
+      } catch (err) {
+        console.error("Cache nicht bereit, verwende Fallback.");
+        preCacheData = {};
+      }
+    }
+    loadPreCache();
 
     function showMsg(txt) {
       const box = document.getElementById("messageBox");
@@ -85,9 +98,14 @@
     }
 
     async function requestOTP() {
-      const email = document.getElementById("emailInput").value.trim();
+      const email = document.getElementById("emailInput").value.trim().toLowerCase();
       if (!email) return showMsg("Bitte E-Mail eingeben.");
       currentEmail = email;
+
+      // Vorab lokal prüfen, ob Buchungen für diese Mail existieren
+      if (preCacheData && !preCacheData[email] && email !== "info@l8street.com") {
+        return showMsg("Keine bezahlten aktuellen Buchungen für diese E-Mail gefunden.");
+      }
 
       const btn = document.getElementById("btnRequestOTP");
       btn.ariaBusy = "true";
@@ -120,8 +138,9 @@
       try {
         const res = await fetch(`${SCRIPT_URL}?action=verifyOTP&email=${encodeURIComponent(currentEmail)}&otp=${encodeURIComponent(otp)}`);
         const data = await res.json();
-        if (data.found) {
-          loadedBookings = data.bookings;
+
+        if (data.success) {
+          userBookings = preCacheData[currentEmail] || [];
           document.getElementById("stepOTP").style.display = "none";
           document.getElementById("stepRules").style.display = "block";
         } else {
@@ -145,7 +164,7 @@
       const container = document.getElementById("bookingsContainer");
       container.innerHTML = "";
 
-      loadedBookings.forEach((b, idx) => {
+      userBookings.forEach((b, idx) => {
         const shareText = `*L8 Street Check-in Info*\n📍 *Adresse:* ${b.address}\n🏢 *Lage:* ${b.etage} | ${b.seite}\n📅 *Zeitraum:* ${b.anreise} - ${b.abreise}\n🔑 *Code:*\n${b.checkinCode}`;
         
         const card = document.createElement("article");
