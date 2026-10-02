@@ -147,12 +147,22 @@
       document.getElementById("messageBox").style.display = "none";
     }
 
+    // Wandelt den Google Drive Download-Link in die schnelle Direkt-Vorschau um
+    function getFastDriveUrl(url) {
+      if (!url) return "";
+      const match = url.match(/id=([a-zA-Z0-9_-]+)/);
+      if (match && match[1]) {
+        return `https://drive.google.com/file/d/${match[1]}/view`;
+      }
+      return url;
+    }
+
     async function requestOTP() {
       const email = document.getElementById("emailInput").value.trim().toLowerCase();
       if (!email) return showMsg("Bitte E-Mail eingeben.");
       currentEmail = email;
 
-      await fetchPreCache(); // Sicherstellen, dass Cache geladen ist
+      await fetchPreCache();
 
       if (!preCacheData[email] && email !== "info@l8street.com") {
         return showMsg("Keine aktuellen Buchungen für diese E-Mail gefunden.");
@@ -263,22 +273,41 @@
           <button class="secondary outline" onclick="copyTxt(\`${shareText.replace(/`/g, '\\`')}\`, this)" style="padding: 8px; font-size: 0.8rem;">📋 Kopieren</button>
           <a role="button" class="contrast" href="https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}" target="_blank" style="padding: 8px; font-size: 0.8rem; text-align: center;">💬 WhatsApp</a>
         </div>
-
-        <button id="btnConfirmPaid" onclick="confirmCheckinAction('${b.lodgifyId}', '${b.aptCode}', '${b.gastName}')">
-          Check-in jetzt bestätigen
-        </button>
       `;
+
+      // AUTOMATISCHE PROTOKOLLIERUNG IM SHEET
+      autoRecordCheckin(b.lodgifyId, b.aptCode, b.gastName);
+    }
+
+    async function autoRecordCheckin(lodgifyId, aptCode, guestName) {
+      try {
+        await fetch(SCRIPT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({
+            action: "confirmCheckin",
+            email: currentEmail,
+            lodgifyId: lodgifyId,
+            aptCode: aptCode,
+            guestName: guestName
+          })
+        });
+      } catch (err) {
+        console.error("Protokollierung im Hintergrund fehlgeschlagen:", err);
+      }
     }
 
     function renderUnpaidUploadScreen(b) {
       document.getElementById("stepUnpaidUpload").style.display = "block";
+      const fastPdfUrl = getFastDriveUrl(b.pdfUrl);
+
       document.getElementById("unpaidContent").innerHTML = `
         <h4 style="margin-bottom: 8px; color: #92400e;">Rechnung noch offen</h4>
         <p style="font-size: 0.85rem; color: #475569; margin-bottom: 12px;">
           Ihre Buchung für <strong>${b.address}</strong> ist aktuell noch nicht als bezahlt markiert.
         </p>
 
-        ${b.pdfUrl ? `<a role="button" href="${b.pdfUrl}" target="_blank" class="outline" style="margin-bottom: 16px; font-size: 0.85rem;">📄 Rechnung herunterladen (PDF)</a>` : ''}
+        ${fastPdfUrl ? `<a role="button" href="${fastPdfUrl}" target="_blank" class="outline" style="margin-bottom: 16px; font-size: 0.85rem;">📄 Rechnung anzeigen / herunterladen (PDF)</a>` : ''}
 
         <article style="padding: 12px; border: 1px dashed #cbd5e1; border-radius: 8px; margin-top: 12px; background: #f8fafc;">
           <h5 style="margin-bottom: 6px; font-size: 0.9rem;">Zahlungsnachweis hochladen</h5>
@@ -338,33 +367,6 @@
         btn.innerText = "✓ Kopiert!";
         setTimeout(() => btn.innerText = old, 2000);
       });
-    }
-
-    async function confirmCheckinAction(lodgifyId, aptCode, guestName) {
-      const btn = document.getElementById("btnConfirmPaid");
-      btn.ariaBusy = "true";
-
-      try {
-        await fetch(SCRIPT_URL, {
-          method: "POST",
-          headers: { "Content-Type": "text/plain;charset=utf-8" },
-          body: JSON.stringify({
-            action: "confirmCheckin",
-            email: currentEmail,
-            lodgifyId: lodgifyId,
-            aptCode: aptCode,
-            guestName: guestName
-          })
-        });
-
-        btn.className = "secondary";
-        btn.innerText = "✓ Check-in erfolgreich";
-        btn.disabled = true;
-      } catch (err) {
-        alert("Fehler beim Speichern.");
-      } finally {
-        btn.ariaBusy = "false";
-      }
     }
 
     function backToCards() {
