@@ -12,6 +12,9 @@
     .badge-paid { background: #dcfce7; color: #166534; font-size: 0.75rem; padding: 3px 8px; border-radius: 4px; font-weight: 600; border: 1px solid #bbf7d0; }
     .badge-open { background: #fef3c7; color: #92400e; font-size: 0.75rem; padding: 3px 8px; border-radius: 4px; font-weight: 600; border: 1px solid #fde68a; }
     .msg-box { padding: 12px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 16px; text-align: center; background-color: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+    .status-alert { padding: 12px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 12px; line-height: 1.4; }
+    .status-pending { background-color: #e0f2fe; color: #075985; border: 1px solid #bae6fd; }
+    .status-rejected { background-color: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
     .apt-card { border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px; margin-bottom: 12px; cursor: pointer; transition: background 0.2s; }
     .apt-card:hover { background: #f8fafc; }
     button, a[role="button"] { width: 100%; }
@@ -147,7 +150,6 @@
       document.getElementById("messageBox").style.display = "none";
     }
 
-    // Wandelt den Google Drive Download-Link in die schnelle Direkt-Vorschau um
     function getFastDriveUrl(url) {
       if (!url) return "";
       const match = url.match(/id=([a-zA-Z0-9_-]+)/);
@@ -224,9 +226,19 @@
         const div = document.createElement("div");
         div.className = "apt-card";
         div.onclick = () => selectBooking(b);
+
+        let statusBadge = `<span class="${b.isPaid ? 'badge-paid' : 'badge-open'}">${b.isPaid ? '✓ Bezahlt' : '⚠ Rechnung Offen'}</span>`;
+        if (!b.isPaid && b.proofInfo) {
+          if (b.proofInfo.status === "IN_PRUEFUNG") {
+            statusBadge = `<span class="badge-open" style="background:#e0f2fe; color:#075985; border-color:#bae6fd;">⏳ In Prüfung</span>`;
+          } else if (b.proofInfo.status.startsWith("ABGELEHNT")) {
+            statusBadge = `<span class="badge-open" style="background:#fee2e2; color:#991b1b; border-color:#fecaca;">✕ Beleg Abgelehnt</span>`;
+          }
+        }
+
         div.innerHTML = `
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <span class="${b.isPaid ? 'badge-paid' : 'badge-open'}">${b.isPaid ? '✓ Bezahlt' : '⚠ Rechnung Offen'}</span>
+            ${statusBadge}
             <small style="color: #64748b;">${b.anreise} bis ${b.abreise}</small>
           </div>
           <h4 style="margin: 0 0 4px 0; font-size: 1rem;">${b.gastName}</h4>
@@ -275,7 +287,6 @@
         </div>
       `;
 
-      // AUTOMATISCHE PROTOKOLLIERUNG IM SHEET
       autoRecordCheckin(b.lodgifyId, b.aptCode, b.gastName);
     }
 
@@ -293,7 +304,7 @@
           })
         });
       } catch (err) {
-        console.error("Protokollierung im Hintergrund fehlgeschlagen:", err);
+        console.error("Protokollierung fehlgeschlagen:", err);
       }
     }
 
@@ -301,20 +312,57 @@
       document.getElementById("stepUnpaidUpload").style.display = "block";
       const fastPdfUrl = getFastDriveUrl(b.pdfUrl);
 
+      let statusNoticeHtml = "";
+      let showUploadForm = true;
+
+      if (b.proofInfo) {
+        const uploadedTime = b.proofInfo.uploadedAt || "";
+        
+        if (b.proofInfo.status === "IN_PRUEFUNG") {
+          statusNoticeHtml = `
+            <div class="status-alert status-pending">
+              <strong>Status: In Prüfung</strong><br>
+              <small>Zahlungsnachweis (${b.proofInfo.fileName}) eingereicht am ${uploadedTime}. Bitte gedulden Sie sich ca. 5–15 Minuten.</small>
+            </div>
+          `;
+          showUploadForm = false;
+        } else if (b.proofInfo.status === "ABGELEHNT_GEPLANT") {
+          statusNoticeHtml = `
+            <div class="status-alert status-rejected">
+              <strong>Status: Abgelehnt</strong><br>
+              <small>Abgelehnt, da der Beleg nur eine geplante Überweisung zeigt. Der Beleg muss eine final ausgeführte Überweisung zeigen. Bitte laden Sie einen neuen Beleg hoch.</small>
+            </div>
+          `;
+          showUploadForm = true;
+        } else if (b.proofInfo.status === "ABGELEHNT_SONSTIGES") {
+          statusNoticeHtml = `
+            <div class="status-alert status-rejected">
+              <strong>Status: Abgelehnt</strong><br>
+              <small>Bitte senden Sie einen neuen Beleg zusammen mit Ihrer Buchungsnummer an uns per WhatsApp an <a href="https://wa.me/4917684801295" target="_blank" style="color:#991b1b; font-weight:bold;">004917684801295</a> und warten Sie einige Minuten.</small>
+            </div>
+          `;
+          showUploadForm = true;
+        }
+      }
+
       document.getElementById("unpaidContent").innerHTML = `
         <h4 style="margin-bottom: 8px; color: #92400e;">Rechnung noch offen</h4>
         <p style="font-size: 0.85rem; color: #475569; margin-bottom: 12px;">
           Ihre Buchung für <strong>${b.address}</strong> ist aktuell noch nicht als bezahlt markiert.
         </p>
 
+        ${statusNoticeHtml}
+
         ${fastPdfUrl ? `<a role="button" href="${fastPdfUrl}" target="_blank" class="outline" style="margin-bottom: 16px; font-size: 0.85rem;">📄 Rechnung anzeigen / herunterladen (PDF)</a>` : ''}
 
-        <article style="padding: 12px; border: 1px dashed #cbd5e1; border-radius: 8px; margin-top: 12px; background: #f8fafc;">
-          <h5 style="margin-bottom: 6px; font-size: 0.9rem;">Zahlungsnachweis hochladen</h5>
-          <p style="font-size: 0.75rem; color: #64748b; margin-bottom: 8px;">Laden Sie hier einen Überweisungsbeleg (PDF oder Bild) hoch:</p>
-          <input type="file" id="proofFile" accept="image/*,application/pdf" style="font-size: 0.8rem; margin-bottom: 8px;">
-          <button id="btnUploadProof" onclick="uploadProof('${b.lodgifyId}', '${b.aptCode}')" style="font-size: 0.85rem;">Upload senden</button>
-        </article>
+        ${showUploadForm ? `
+          <article style="padding: 12px; border: 1px dashed #cbd5e1; border-radius: 8px; margin-top: 12px; background: #f8fafc;">
+            <h5 style="margin-bottom: 6px; font-size: 0.9rem;">Zahlungsnachweis hochladen</h5>
+            <p style="font-size: 0.75rem; color: #64748b; margin-bottom: 8px;">Laden Sie hier einen Überweisungsbeleg (PDF oder Bild) hoch:</p>
+            <input type="file" id="proofFile" accept="image/*,application/pdf" style="font-size: 0.8rem; margin-bottom: 8px;">
+            <button id="btnUploadProof" onclick="uploadProof('${b.lodgifyId}', '${b.aptCode}')" style="font-size: 0.85rem;">Upload senden</button>
+          </article>
+        ` : ''}
 
         <div id="uploadStatusMsg" style="display:none; margin-top: 12px; padding: 10px; border-radius: 6px; background: #dcfce7; color: #166534; font-size: 0.85rem; text-align: center;"></div>
       `;
@@ -349,7 +397,7 @@
           });
 
           const msg = document.getElementById("uploadStatusMsg");
-          msg.innerText = "Danke! Wir prüfen Ihre Zahlung jetzt bitte kommen Sie in ca. 20 Minuten zurück";
+          msg.innerText = "Danke! Wir prüfen Ihre Zahlung jetzt. Bitte kommen Sie in ca. 5–15 Minuten zurück.";
           msg.style.display = "block";
           btn.style.display = "none";
         } catch (err) {
