@@ -1,256 +1,193 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>L8 Street – Online Check-in</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Pico CSS v2 -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
   <style>
-    .loader {
-      border: 2px solid #f3f3f3;
-      border-top: 2px solid #ffffff;
-      border-radius: 50%;
-      width: 16px;
-      height: 16px;
-      animation: spin 0.8s linear infinite;
-      display: inline-block;
-      vertical-align: middle;
-      margin-right: 8px;
-    }
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
+    body { padding: 20px; max-width: 600px; margin: 0 auto; background-color: #f8fafc; }
+    article { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border-radius: 12px; }
+    .code-box { background: #1e293b; color: #38bdf8; padding: 15px; border-radius: 8px; font-weight: bold; font-family: monospace; text-align: center; }
+    .badge { background: #e2e8f0; font-size: 0.8rem; padding: 2px 8px; border-radius: 4px; display: inline-block; }
   </style>
 </head>
-<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+<body>
 
-  <div class="max-w-md w-full bg-white rounded-xl shadow-lg p-6 space-y-6">
-    
-    <!-- Header -->
-    <div class="text-center border-b pb-4">
-      <h1 class="text-2xl font-bold text-gray-800">L8 Street Check-in</h1>
-      <p class="text-sm text-gray-500 mt-1">Gästeportal &amp; Schlüsselcode-Abruf</p>
-    </div>
+  <main>
+    <article>
+      <header style="text-align: center;">
+        <h2 style="margin-bottom: 0;">L8 Street Check-in</h2>
+        <small>Gästeportal &amp; Schlüsselcode-Abruf</small>
+      </header>
 
-    <!-- Status / Info Meldungen -->
-    <div id="messageBox" class="hidden p-3 rounded-lg text-sm text-center"></div>
+      <div id="messageBox" style="display: none;" class="pico-background-red-100"></div>
 
-    <!-- SCHRITT 1: E-Mail Eingabe -->
-    <div id="stepEmail" class="space-y-4">
-      <p class="text-sm text-gray-600">Bitte geben Sie die E-Mail-Adresse Ihrer Buchung ein, um den Sicherheitscode anzufordern.</p>
-      <div>
-        <label class="block text-sm font-medium text-gray-700">E-Mail Adresse</label>
-        <input type="email" id="emailInput" placeholder="ihre@email.de" class="mt-1 w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+      <!-- SCHRITT 1: E-Mail -->
+      <div id="stepEmail">
+        <p><small>Geben Sie die E-Mail-Adresse Ihrer Buchung ein, um den Sicherheitscode anzufordern.</small></p>
+        <label for="emailInput">E-Mail Adresse</label>
+        <input type="email" id="emailInput" placeholder="ihre@email.de" required>
+        <button id="btnRequestOTP" onclick="requestOTP()">Sicherheitscode anfordern</button>
       </div>
-      <button onclick="requestOTP()" id="btnRequestOTP" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg transition flex items-center justify-center">
-        <span>Sicherheitscode anfordern</span>
-      </button>
-    </div>
 
-    <!-- SCHRITT 2: OTP / Code Eingabe -->
-    <div id="stepOTP" class="space-y-4 hidden">
-      <p class="text-sm text-gray-600">Wir haben einen 6-stelligen Code an Ihre E-Mail gesendet.</p>
-      <div>
-        <label class="block text-sm font-medium text-gray-700">Sicherheitscode</label>
-        <input type="text" id="otpInput" placeholder="123456" maxlength="6" class="mt-1 w-full p-3 border rounded-lg text-center font-mono text-xl tracking-widest focus:ring-2 focus:ring-blue-500 outline-none">
+      <!-- SCHRITT 2: OTP -->
+      <div id="stepOTP" style="display: none;">
+        <p><small>Wir haben einen 6-stelligen Code an Ihre E-Mail gesendet.</small></p>
+        <label for="otpInput">Sicherheitscode</label>
+        <input type="text" id="otpInput" placeholder="123456" maxlength="6" style="text-align: center; letter-spacing: 4px; font-size: 1.2rem;" required>
+        <button id="btnVerifyOTP" onclick="verifyOTP()">Verifizieren</button>
+        <div style="text-align: center;"><a href="#" onclick="resetFlow()" style="font-size: 0.8rem;">Anderes Konto nutzen</a></div>
       </div>
-      <button onclick="verifyOTP()" id="btnVerifyOTP" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg transition flex items-center justify-center">
-        <span>Weiter</span>
-      </button>
-      <button onclick="resetFlow()" class="w-full text-xs text-gray-500 hover:underline text-center">Anderes Konto nutzen</button>
-    </div>
 
-    <!-- SCHRITT 3: Hausordnung Bestätigung (Willkommen) -->
-    <div id="stepRules" class="space-y-5 hidden">
-      <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h3 class="font-bold text-gray-800 text-lg mb-2">Willkommen beim Check-in!</h3>
-        <p class="text-xs text-gray-600 leading-relaxed mb-3">
-          Bitte beachten Sie vor der Schlüsselübergabe unsere wichtigen Hausregeln für einen angenehmen Aufenthalt:
-        </p>
-        <ul class="text-xs text-gray-700 space-y-1.5 list-disc list-inside">
-          <li><strong>Rauchverbot:</strong> Absolutes Rauchverbot im gesamten Gebäude.</li>
-          <li><strong>Nachtruhe:</strong> Bitte halten Sie von 22:00 bis 07:00 Uhr Ruhe.</li>
-          <li><strong>Partys:</strong> Feiern und Veranstaltungen sind strengstens untersagt.</li>
-          <li><strong>Müll:</strong> Bitte entsorgen Sie Ihren Müll in den vorgesehenen Behältern.</li>
+      <!-- SCHRITT 3: Hausordnung -->
+      <div id="stepRules" style="display: none;">
+        <h4>Willkommen!</h4>
+        <p><small>Bitte akzeptieren Sie vor der Schlüsselübergabe die Hausordnung:</small></p>
+        <ul>
+          <li><small><strong>Rauchverbot:</strong> Im gesamten Gebäude untersagt.</small></li>
+          <li><small><strong>Nachtruhe:</strong> Von 22:00 bis 07:00 Uhr.</small></li>
+          <li><small><strong>Partys:</strong> Strikte Untersagung von Feiern.</small></li>
         </ul>
+        <fieldset>
+          <label for="checkRules">
+            <input type="checkbox" id="checkRules" onchange="toggleRulesBtn()">
+            Ich akzeptiere die Hausordnung.
+          </label>
+        </fieldset>
+        <button id="btnShowCheckin" disabled onclick="showBookings()">Weiter zur Apartment-Auswahl</button>
       </div>
 
-      <div class="flex items-start space-x-3 p-2">
-        <input type="checkbox" id="checkRules" onchange="toggleCheckinButton()" class="mt-1 h-5 w-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
-        <label for="checkRules" class="text-xs text-gray-700 leading-snug cursor-pointer">
-          Ich habe die Hausordnung gelesen und akzeptiere diese Bedingungen für meine Buchung.
-        </label>
+      <!-- SCHRITT 4: Apartment Auswahl / Details -->
+      <div id="stepDetails" style="display: none;">
+        <h4>Ihre Apartments</h4>
+        <p><small>Wählen Sie das gewünschte Apartment aus, um den Check-in durchzuführen:</small></p>
+        <div id="bookingsContainer"></div>
       </div>
 
-      <button id="btnShowCheckin" onclick="showCheckinDetails()" disabled class="w-full bg-gray-300 text-gray-500 font-medium py-3 rounded-lg cursor-not-allowed transition">
-        Zu den Check-in Daten
-      </button>
-    </div>
-
-    <!-- SCHRITT 4: Check-in Details & Code -->
-    <div id="stepDetails" class="space-y-6 hidden">
-      <div id="bookingsContainer" class="space-y-6"></div>
-    </div>
-
-  </div>
+    </article>
+  </main>
 
   <script>
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzzncqaJlvS8Q58Ppnwe4FW3Aoz5dONVHPfmvpeG82S3t0lOLZr6s6-z_8kr_RhyvMu1w/exec";
-
     let currentEmail = "";
     let loadedBookings = [];
 
-    function showMessage(text, isError = false) {
+    function showMsg(txt) {
       const box = document.getElementById("messageBox");
-      box.classList.remove("hidden", "bg-red-100", "text-red-700", "bg-green-100", "text-green-700");
-      box.classList.add(isError ? "bg-red-100" : "bg-green-100", isError ? "text-red-700" : "text-green-700");
-      box.innerText = text;
+      box.innerText = txt;
+      box.style.display = "block";
     }
 
-    function clearMessage() {
-      document.getElementById("messageBox").classList.add("hidden");
+    function clearMsg() {
+      document.getElementById("messageBox").style.display = "none";
     }
 
-    // 1. OTP Anfordern
     async function requestOTP() {
       const email = document.getElementById("emailInput").value.trim();
-      if (!email) return showMessage("Bitte geben Sie eine E-Mail-Adresse ein.", true);
-
+      if (!email) return showMsg("Bitte E-Mail eingeben.");
       currentEmail = email;
+
       const btn = document.getElementById("btnRequestOTP");
-      btn.disabled = true;
-      btn.innerHTML = `<span class="loader"></span> Code wird gesendet...`;
-      clearMessage();
+      btn.ariaBusy = "true";
+      clearMsg();
 
       try {
         const res = await fetch(`${SCRIPT_URL}?action=requestOTP&email=${encodeURIComponent(email)}`);
         const data = await res.json();
-
         if (data.success) {
-          document.getElementById("stepEmail").classList.add("hidden");
-          document.getElementById("stepOTP").classList.remove("hidden");
-          showMessage("Sicherheitscode wurde per E-Mail gesendet.");
+          document.getElementById("stepEmail").style.display = "none";
+          document.getElementById("stepOTP").style.display = "block";
         } else {
-          showMessage(data.message || "E-Mail nicht gefunden.", true);
+          showMsg(data.message || "Fehler beim Senden.");
         }
       } catch (err) {
-        showMessage("Fehler bei der Verbindung zum Server.", true);
+        showMsg("Verbindungsfehler.");
       } finally {
-        btn.disabled = false;
-        btn.innerHTML = `<span>Sicherheitscode anfordern</span>`;
+        btn.ariaBusy = "false";
       }
     }
 
-    // 2. OTP Verifizieren
     async function verifyOTP() {
       const otp = document.getElementById("otpInput").value.trim();
-      if (!otp) return showMessage("Bitte geben Sie den Code ein.", true);
+      if (!otp) return showMsg("Code eingeben.");
 
       const btn = document.getElementById("btnVerifyOTP");
-      btn.disabled = true;
-      btn.innerHTML = `<span class="loader"></span> Prüfe...`;
-      clearMessage();
+      btn.ariaBusy = "true";
+      clearMsg();
 
       try {
         const res = await fetch(`${SCRIPT_URL}?action=verifyOTP&email=${encodeURIComponent(currentEmail)}&otp=${encodeURIComponent(otp)}`);
         const data = await res.json();
-
         if (data.found) {
           loadedBookings = data.bookings;
-          document.getElementById("stepOTP").classList.add("hidden");
-          document.getElementById("stepRules").classList.remove("hidden");
+          document.getElementById("stepOTP").style.display = "none";
+          document.getElementById("stepRules").style.display = "block";
         } else {
-          showMessage(data.message || "Code ungültig.", true);
+          showMsg(data.message || "Code ungültig.");
         }
       } catch (err) {
-        showMessage("Fehler bei der Verifizierung.", true);
+        showMsg("Verbindungsfehler.");
       } finally {
-        btn.disabled = false;
-        btn.innerHTML = `<span>Weiter</span>`;
+        btn.ariaBusy = "false";
       }
     }
 
-    // Hausordnung Button aktivieren/deaktivieren
-    function toggleCheckinButton() {
-      const checked = document.getElementById("checkRules").checked;
-      const btn = document.getElementById("btnShowCheckin");
-      if (checked) {
-        btn.disabled = false;
-        btn.className = "w-full bg-green-600 hover:bg-green-700 text-white font-medium py-3 rounded-lg transition cursor-pointer";
-      } else {
-        btn.disabled = true;
-        btn.className = "w-full bg-gray-300 text-gray-500 font-medium py-3 rounded-lg cursor-not-allowed transition";
-      }
+    function toggleRulesBtn() {
+      document.getElementById("btnShowCheckin").disabled = !document.getElementById("checkRules").checked;
     }
 
-    // Zeigt die Check-in Details an
-    function showCheckinDetails() {
-      document.getElementById("stepRules").classList.add("hidden");
-      document.getElementById("stepDetails").classList.remove("hidden");
-      renderBookings(loadedBookings);
-    }
-
-    // Rendered die Buchungen & Checkin-Daten mit Teilen & Kopieren
-    function renderBookings(bookings) {
+    function showBookings() {
+      document.getElementById("stepRules").style.display = "none";
+      document.getElementById("stepDetails").style.display = "block";
+      
       const container = document.getElementById("bookingsContainer");
       container.innerHTML = "";
 
-      bookings.forEach((b, index) => {
-        const shareText = `*L8 Street Check-in Info*\n\n📍 *Adresse:* ${b.address}\n🏢 *Etage / Lage:* ${b.etage} | ${b.seite}\n📅 *Zeitraum:* ${b.anreise} bis ${b.abreise}\n\n🔑 *Zugangscode:*\n${b.checkinCode}`;
+      loadedBookings.forEach((b, idx) => {
+        const shareText = `*L8 Street Check-in Info*\n📍 *Adresse:* ${b.address}\n🏢 *Lage:* ${b.etage} | ${b.seite}\n📅 *Zeitraum:* ${b.anreise} - ${b.abreise}\n🔑 *Code:*\n${b.checkinCode}`;
         
-        const card = document.createElement("div");
-        card.className = "border rounded-lg p-4 bg-gray-50 space-y-3";
+        const card = document.createElement("article");
+        card.style.padding = "15px";
+        card.style.marginBottom = "15px";
         card.innerHTML = `
-          <div class="border-b pb-2">
-            <p class="text-xs font-semibold text-blue-600 uppercase">Buchung ${b.lodgifyId}</p>
-            <h3 class="font-bold text-gray-800 text-lg">${b.gastName}</h3>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span class="badge">Buchung ${b.lodgifyId}</span>
+            <small>${b.anreise} bis ${b.abreise}</small>
           </div>
-          <div class="text-sm space-y-1 text-gray-600">
-            <p><strong>Adresse:</strong> ${b.address}</p>
-            <p><strong>Etage / Lage:</strong> ${b.etage} | ${b.seite}</p>
-            <p><strong>Zeitraum:</strong> ${b.anreise} bis ${b.abreise}</p>
-          </div>
-          
-          <div class="mt-4 p-3 bg-white border border-blue-200 rounded-lg text-center">
-            <p class="text-xs text-gray-500 uppercase tracking-wider">Schlüssel / Check-in Code</p>
-            <div class="text-sm md:text-base font-bold font-mono text-gray-900 mt-2 whitespace-pre-line leading-relaxed">${b.checkinCode}</div>
+          <h4 style="margin: 5px 0;">${b.gastName}</h4>
+          <p style="font-size: 0.9rem; margin-bottom: 10px;">
+            <strong>Adresse:</strong> ${b.address}<br>
+            <strong>Etage/Lage:</strong> ${b.etage} | ${b.seite}
+          </p>
+
+          <div class="code-box">${b.checkinCode}</div>
+
+          <div class="grid" style="margin-top: 10px;">
+            <button class="secondary outline" onclick="copyTxt(\`${shareText.replace(/`/g, '\\`')}\`, this)">📋 Kopieren</button>
+            <a role="button" class="contrast" href="https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}" target="_blank">💬 WhatsApp</a>
           </div>
 
-          <!-- Buttons zum Kopieren & Teilen -->
-          <div class="grid grid-cols-2 gap-2 mt-3">
-            <button onclick="copyToClipboard(\`${shareText.replace(/`/g, '\\`')}\`, this)" class="bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs font-medium py-2 px-3 rounded-lg flex items-center justify-center transition">
-              📋 Code Kopieren
-            </button>
-            <a href="https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}" target="_blank" class="bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-medium py-2 px-3 rounded-lg flex items-center justify-center transition">
-              💬 Per WhatsApp
-            </a>
-          </div>
-
-          <button id="checkinBtn_${index}" onclick="confirmCheckin('${b.lodgifyId}', '${b.aptCode}', '${b.gastName}', ${index})" class="w-full mt-3 bg-gray-900 hover:bg-black text-white py-2.5 rounded-lg text-sm font-medium transition">
-            Check-in jetzt bestätigen
+          <button id="btnConfirm_${idx}" onclick="confirmCheckin('${b.lodgifyId}', '${b.aptCode}', '${b.gastName}', ${idx})" style="margin-top: 10px;">
+            Check-in für dieses Apartment bestätigen
           </button>
         `;
         container.appendChild(card);
       });
     }
 
-    // Kopier-Funktion
-    function copyToClipboard(text, btnElement) {
-      navigator.clipboard.writeText(text).then(() => {
-        const origText = btnElement.innerText;
-        btnElement.innerText = "✓ Kopiert!";
-        setTimeout(() => { btnElement.innerText = origText; }, 2000);
-      }).catch(() => {
-        alert("Kopieren fehlgeschlagen.");
+    function copyTxt(txt, btn) {
+      navigator.clipboard.writeText(txt).then(() => {
+        const old = btn.innerText;
+        btn.innerText = "✓ Kopiert!";
+        setTimeout(() => btn.innerText = old, 2000);
       });
     }
 
-    // Check-in im Sheet protokollieren
-    async function confirmCheckin(lodgifyId, aptCode, guestName, index) {
-      const btn = document.getElementById(`checkinBtn_${index}`);
-      btn.disabled = true;
-      btn.innerText = "Wird gespeichert...";
+    async function confirmCheckin(lodgifyId, aptCode, guestName, idx) {
+      const btn = document.getElementById(`btnConfirm_${idx}`);
+      btn.ariaBusy = "true";
 
       try {
         await fetch(SCRIPT_URL, {
@@ -265,19 +202,20 @@
           })
         });
 
-        btn.className = "w-full mt-3 bg-green-100 text-green-800 py-2.5 rounded-lg text-sm font-medium text-center border border-green-300";
-        btn.innerText = "✓ Check-in erfolgreich durchgeführt";
+        btn.className = "secondary";
+        btn.innerText = "✓ Check-in erfolgreich";
+        btn.disabled = true;
       } catch (err) {
-        alert("Fehler beim Speichern des Check-ins.");
-        btn.disabled = false;
-        btn.innerText = "Check-in jetzt bestätigen";
+        alert("Fehler beim Speichern.");
+      } finally {
+        btn.ariaBusy = "false";
       }
     }
 
     function resetFlow() {
-      document.getElementById("stepOTP").classList.add("hidden");
-      document.getElementById("stepEmail").classList.remove("hidden");
-      clearMessage();
+      document.getElementById("stepOTP").style.display = "none";
+      document.getElementById("stepEmail").style.display = "block";
+      clearMsg();
     }
   </script>
 </body>
