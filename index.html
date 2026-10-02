@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>L8 Street – Online Check-in</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+
+  <div class="max-w-md w-full bg-white rounded-xl shadow-lg p-6 space-y-6">
+    
+    <!-- Header -->
+    <div class="text-center border-b pb-4">
+      <h1 class="text-2xl font-bold text-gray-800">L8 Street Check-in</h1>
+      <p class="text-sm text-gray-500 mt-1">Gästeportal &amp; Schlüsselcode-Abruf</p>
+    </div>
+
+    <!-- Status / Info Meldungen -->
+    <div id="messageBox" class="hidden p-3 rounded-lg text-sm text-center"></div>
+
+    <!-- SCHRITT 1: E-Mail Eingabe -->
+    <div id="stepEmail" class="space-y-4">
+      <p class="text-sm text-gray-600">Bitte geben Sie die E-Mail-Adresse Ihrer Buchung ein, um den Sicherheitscode anzufordern.</p>
+      <div>
+        <label class="block text-sm font-medium text-gray-700">E-Mail Adresse</label>
+        <input type="email" id="emailInput" placeholder="ihre@email.de" class="mt-1 w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+      </div>
+      <button onclick="requestOTP()" id="btnRequestOTP" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg transition">
+        Sicherheitscode anfordern
+      </button>
+    </div>
+
+    <!-- SCHRITT 2: OTP / Code Eingabe (Standardmäßig verborgen) -->
+    <div id="stepOTP" class="space-y-4 hidden">
+      <p class="text-sm text-gray-600">Wir haben einen 6-stelligen Code an Ihre E-Mail gesendet.</p>
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Sicherheitscode</label>
+        <input type="text" id="otpInput" placeholder="123456" maxlength="6" class="mt-1 w-full p-3 border rounded-lg text-center font-mono text-xl tracking-widest focus:ring-2 focus:ring-blue-500 outline-none">
+      </div>
+      <button onclick="verifyOTP()" id="btnVerifyOTP" class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-3 rounded-lg transition">
+        Anmelden &amp; Check-in starten
+      </button>
+      <button onclick="resetFlow()" class="w-full text-xs text-gray-500 hover:underline text-center">Anderes Konto nutzen</button>
+    </div>
+
+    <!-- SCHRITT 3: Check-in Details & Code (Standardmäßig verborgen) -->
+    <div id="stepDetails" class="space-y-6 hidden">
+      <div id="bookingsContainer" class="space-y-6"></div>
+    </div>
+
+  </div>
+
+  <script>
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzzncqaJlvS8Q58Ppnwe4FW3Aoz5dONVHPfmvpeG82S3t0lOLZr6s6-z_8kr_RhyvMu1w/exec";
+
+    let currentEmail = "";
+
+    function showMessage(text, isError = false) {
+      const box = document.getElementById("messageBox");
+      box.classList.remove("hidden", "bg-red-100", "text-red-700", "bg-green-100", "text-green-700");
+      box.classList.add(isError ? "bg-red-100" : "bg-green-100", isError ? "text-red-700" : "text-green-700");
+      box.innerText = text;
+    }
+
+    function clearMessage() {
+      document.getElementById("messageBox").classList.add("hidden");
+    }
+
+    // 1. OTP Anfordern
+    async function requestOTP() {
+      const email = document.getElementById("emailInput").value.trim();
+      if (!email) return showMessage("Bitte geben Sie eine E-Mail-Adresse ein.", true);
+
+      currentEmail = email;
+      const btn = document.getElementById("btnRequestOTP");
+      btn.disabled = true;
+      btn.innerText = "Sende Code...";
+      clearMessage();
+
+      try {
+        const res = await fetch(`${SCRIPT_URL}?action=requestOTP&email=${encodeURIComponent(email)}`);
+        const data = await res.json();
+
+        if (data.success) {
+          document.getElementById("stepEmail").classList.add("hidden");
+          document.getElementById("stepOTP").classList.remove("hidden");
+          showMessage("Sicherheitscode wurde per E-Mail gesendet.");
+        } else {
+          showMessage(data.message || "E-Mail nicht gefunden.", true);
+        }
+      } catch (err) {
+        showMessage("Fehler bei der Verbindung zum Server.", true);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "Sicherheitscode anfordern";
+      }
+    }
+
+    // 2. OTP Verifizieren & Daten anzeigen
+    async function verifyOTP() {
+      const otp = document.getElementById("otpInput").value.trim();
+      if (!otp) return showMessage("Bitte geben Sie den Code ein.", true);
+
+      const btn = document.getElementById("btnVerifyOTP");
+      btn.disabled = true;
+      btn.innerText = "Prüfe...";
+      clearMessage();
+
+      try {
+        const res = await fetch(`${SCRIPT_URL}?action=verifyOTP&email=${encodeURIComponent(currentEmail)}&otp=${encodeURIComponent(otp)}`);
+        const data = await res.json();
+
+        if (data.found) {
+          document.getElementById("stepOTP").classList.add("hidden");
+          document.getElementById("stepDetails").classList.remove("hidden");
+          renderBookings(data.bookings);
+        } else {
+          showMessage(data.message || "Code ungültig.", true);
+        }
+      } catch (err) {
+        showMessage("Fehler bei der Verifizierung.", true);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "Anmelden & Check-in starten";
+      }
+    }
+
+    // Rendered die Buchungen & Checkin-Daten
+    function renderBookings(bookings) {
+      const container = document.getElementById("bookingsContainer");
+      container.innerHTML = "";
+
+      bookings.forEach((b, index) => {
+        const card = document.createElement("div");
+        card.className = "border rounded-lg p-4 bg-gray-50 space-y-3";
+        card.innerHTML = `
+          <div class="border-b pb-2">
+            <p class="text-xs font-semibold text-blue-600 uppercase">Buchung ${b.lodgifyId}</p>
+            <h3 class="font-bold text-gray-800 text-lg">${b.gastName}</h3>
+          </div>
+          <div class="text-sm space-y-1 text-gray-600">
+            <p><strong>Adresse:</strong> ${b.address}</p>
+            <p><strong>Etage / Lage:</strong> ${b.etage} | ${b.seite}</p>
+            <p><strong>Zeitraum:</strong> ${b.anreise} bis ${b.abreise}</p>
+          </div>
+          
+          <div class="mt-4 p-3 bg-white border border-blue-200 rounded-lg text-center">
+            <p class="text-xs text-gray-500 uppercase tracking-wider">Schlüssel / Check-in Code</p>
+            <p class="text-2xl font-bold font-mono text-gray-900 mt-1">${b.checkinCode}</p>
+          </div>
+
+          <button id="checkinBtn_${index}" onclick="confirmCheckin('${b.lodgifyId}', '${b.aptCode}', '${b.gastName}', ${index})" class="w-full mt-3 bg-gray-900 hover:bg-black text-white py-2 rounded-lg text-sm font-medium transition">
+            Check-in jetzt bestätigen
+          </button>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    // 3. Check-in im Sheet protokollieren
+    async function confirmCheckin(lodgifyId, aptCode, guestName, index) {
+      const btn = document.getElementById(`checkinBtn_${index}`);
+      btn.disabled = true;
+      btn.innerText = "Wird gespeichert...";
+
+      try {
+        await fetch(SCRIPT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({
+            action: "confirmCheckin",
+            email: currentEmail,
+            lodgifyId: lodgifyId,
+            aptCode: aptCode,
+            guestName: guestName
+          })
+        });
+
+        btn.className = "w-full mt-3 bg-green-100 text-green-800 py-2 rounded-lg text-sm font-medium text-center border border-green-300";
+        btn.innerText = "✓ Check-in erfolgreich durchgeführt";
+      } catch (err) {
+        alert("Fehler beim Speichern des Check-ins.");
+        btn.disabled = false;
+        btn.innerText = "Check-in jetzt bestätigen";
+      }
+    }
+
+    function resetFlow() {
+      document.getElementById("stepOTP").classList.add("hidden");
+      document.getElementById("stepEmail").classList.remove("hidden");
+      clearMessage();
+    }
+  </script>
+</body>
+</html>
