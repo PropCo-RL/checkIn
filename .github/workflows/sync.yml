@@ -3,7 +3,7 @@ name: Sync Checkin Pre-Cache
 on:
   schedule:
     # Läuft alle 15 Minuten
-    - cron: '*/5 * * * *'
+    - cron: '*/15 * * * *'
   workflow_dispatch: # Ermöglicht auch manuelles Ausführen per Klick auf GitHub
 
 jobs:
